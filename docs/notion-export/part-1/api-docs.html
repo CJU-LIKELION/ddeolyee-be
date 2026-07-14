@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>마감 할인 앱 API 문서</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14/swagger-ui.min.css">
+  <style>
+    body { margin: 0; background: #fafafa; }
+    .topbar { background: #0066cc; color: #fff; padding: 14px 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .topbar h1 { margin: 0; font-size: 18px; font-weight: 600; }
+    .topbar span { font-size: 13px; opacity: 0.85; }
+    #swagger-ui { max-width: 1200px; margin: 0 auto; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>마감 할인 상품 거래 앱 &mdash; API 문서</h1>
+    <span>OpenAPI 3.0 &middot; Swagger UI</span>
+  </div>
+  <div id="swagger-ui"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14/swagger-ui-bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14/swagger-ui-standalone-preset.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+  <script>
+    const specYaml = `openapi: 3.0.3
+info:
+  title: 마감 할인 상품 거래 앱 API
+  description: |
+    마감 임박 음식을 할인 판매하는 O2O 거래 앱의 REST API 명세.
+    - 고객(CUSTOMER): 내 주변 할인 상품 검색, 구매, 리뷰, 즐겨찾기, 포인트
+    - 점주(OWNER): 가게 등록, 마감 할인 상품 등록/관리, 주문 확인
+  version: 1.0.0
+  contact:
+    name: 마감할인 프로젝트 팀
+
+servers:
+  - url: https://{host}/api
+    description: 운영/개발 서버
+    variables:
+      host:
+        default: localhost:8080
+
+tags:
+  - name: Auth
+    description: 인증 (회원가입/로그인)
+  - name: Users
+    description: 유저 정보 · 위치
+  - name: Stores
+    description: 가게
+  - name: Products
+    description: 마감 할인 상품
+  - name: Orders
+    description: 주문 · 결제
+  - name: Reviews
+    description: 리뷰
+  - name: Favorites
+    description: 즐겨찾기(찜)
+  - name: Points
+    description: 포인트
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ==================== Auth ====================
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: 회원가입
+      description: 고객/점주 공통. role로 구분.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        '201':
+          description: 회원가입 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 로그인
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 로그인 성공 (JWT 발급)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/reissue:
+    post:
+      tags: [Auth]
+      summary: 토큰 재발급
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+              required: [refreshToken]
+      responses:
+        '200':
+          description: accessToken 재발급
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          accessToken:
+                            type: string
+
+  /auth/check-email:
+    get:
+      tags: [Auth]
+      summary: 이메일 중복 확인
+      security: []
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 사용 가능 여부
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          available:
+                            type: boolean
+
+  # ==================== Users ====================
+  /users/me:
+    get:
+      tags: [Users]
+      summary: 내 정보 조회
+      responses:
+        '200':
+          description: 내 정보
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      tags: [Users]
+      summary: 내 정보 수정
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccess'
+    delete:
+      tags: [Users]
+      summary: 회원 탈퇴
+      responses:
+        '204':
+          description: 탈퇴 성공
+
+  /users/me/location:
+    put:
+      tags: [Users]
+      summary: 내 위치 갱신
+      description: 현위치 기반 검색을 위한 좌표 갱신
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationRequest'
+      responses:
+        '200':
+          description: 위치 갱신 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccess'
+
+  /users/me/points:
+    get:
+      tags: [Points]
+      summary: 내 포인트 잔액 조회
+      responses:
+        '200':
+          description: 포인트 잔액
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          totalPoints:
+                            type: integer
+                            example: 1500
+
+  /users/me/points/history:
+    get:
+      tags: [Points]
+      summary: 내 포인트 내역 조회
+      parameters:
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/PointType'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          description: 포인트 내역 (페이지)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          totalPoints:
+                            type: integer
+                          content:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/PointHistory'
+
+  # ==================== Stores ====================
+  /stores:
+    post:
+      tags: [Stores]
+      summary: 가게 등록
+      description: 점주 회원이 가게를 등록. ownerId는 토큰에서 추출.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreCreateRequest'
+      responses:
+        '201':
+          description: 가게 등록 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StoreSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /stores/me:
+    get:
+      tags: [Stores]
+      summary: 내 가게 조회
+      description: 로그인한 점주 본인의 가게 정보
+      responses:
+        '200':
+          description: 내 가게 정보
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StoreDetail'
+
+  /stores/nearby:
+    get:
+      tags: [Stores]
+      summary: 내 주변 가게 검색
+      description: |
+        현위치 기반 주변 할인 판매 점포 검색.
+        거리순/할인율순/가격순/마감시간순 정렬 지원.
+      security: []
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+          example: 37.4979
+        - name: lng
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+          example: 127.0276
+        - name: radius
+          in: query
+          description: 검색 반경(m)
+          schema:
+            type: integer
+            default: 3000
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [distance, discount, price, endTime]
+            default: distance
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          description: 주변 가게 목록 (페이지)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          content:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/StoreNearby'
+
+  /stores/{storeId}:
+    get:
+      tags: [Stores]
+      summary: 가게 상세 조회
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/StoreIdParam'
+      responses:
+        '200':
+          description: 가게 상세
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StoreDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Stores]
+      summary: 가게 정보 수정
+      parameters:
+        - $ref: '#/components/parameters/StoreIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreCreateRequest'
+      responses:
+        '200':
+          description: 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Stores]
+      summary: 가게 삭제
+      parameters:
+        - $ref: '#/components/parameters/StoreIdParam'
+      responses:
+        '204':
+          description: 삭제 성공
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /stores/{storeId}/products:
+    get:
+      tags: [Stores]
+      summary: 가게의 상품 목록
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/StoreIdParam'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ProductStatus'
+      responses:
+        '200':
+          description: 상품 목록
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ProductSummary'
+
+  /stores/{storeId}/reviews:
+    get:
+      tags: [Reviews]
+      summary: 가게의 리뷰 목록
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/StoreIdParam'
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [latest, rating]
+            default: latest
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          description: 리뷰 목록 (평균 별점 포함)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          averageRating:
+                            type: number
+                            format: float
+                          reviewCount:
+                            type: integer
+                          content:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Review'
+
+  /stores/{storeId}/orders:
+    get:
+      tags: [Orders]
+      summary: 가게 주문 목록 (점주)
+      parameters:
+        - $ref: '#/components/parameters/StoreIdParam'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/PickupStatus'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          description: 가게 주문 목록 (페이지)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          content:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/StoreOrderSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ==================== Products ====================
+  /products:
+    post:
+      tags: [Products]
+      summary: 마감 할인 상품 등록
+      description: |
+        점주가 남은 음식·할인가·수량·판매 종료 시간을 등록.
+        discountRate는 서버에서 자동 계산, status는 FOR_SALE로 초기화.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreateRequest'
+      responses:
+        '201':
+          description: 상품 등록 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ProductSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [Products]
+      summary: 상품 탐색 (피드)
+      description: 검색 없이 둘러보는 피드. 이미지/할인률/짧은 설명 노출.
+      security: []
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [distance, discount, price, endTime]
+            default: endTime
+        - name: lat
+          in: query
+          description: distance 정렬 시 필요
+          schema:
+            type: number
+            format: double
+        - name: lng
+          in: query
+          description: distance 정렬 시 필요
+          schema:
+            type: number
+            format: double
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ProductStatus'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          description: 상품 피드 (페이지)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          content:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/ProductFeedItem'
+
+  /products/{productId}:
+    get:
+      tags: [Products]
+      summary: 상품 상세 조회
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ProductIdParam'
+      responses:
+        '200':
+          description: 상품 상세
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ProductDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Products]
+      summary: 상품 수정
+      parameters:
+        - $ref: '#/components/parameters/ProductIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductUpdateRequest'
+      responses:
+        '200':
+          description: 수정 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ProductSummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Products]
+      summary: 상품 삭제
+      parameters:
+        - $ref: '#/components/parameters/ProductIdParam'
+      responses:
+        '204':
+          description: 삭제 성공
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ==================== Orders ====================
+  /orders:
+    post:
+      tags: [Orders]
+      summary: 주문/결제
+      description: |
+        결제 + 재고 차감 + 포인트 적립을 하나의 트랜잭션으로 처리.
+        customerId는 토큰에서 추출, totalPrice/적립 포인트는 서버가 계산.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+      responses:
+        '201':
+          description: 주문 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrderDetail'
+        '400':
+          description: 판매 종료 상품 / 포인트 부족
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '409':
+          description: 재고 부족
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /orders/me:
+    get:
+      tags: [Orders]
+      summary: 내 주문 목록
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/PickupStatus'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+      responses:
+        '200':
+          description: 내 주문 목록 (페이지)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          content:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/OrderSummary'
+
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: 주문 상세 조회
+      parameters:
+        - $ref: '#/components/parameters/OrderIdParam'
+      responses:
+        '200':
+          description: 주문 상세 (가게 좌표 포함 - 맵 시각화용)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrderDetail'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /orders/{orderId}/cancel:
+    patch:
+      tags: [Orders]
+      summary: 주문 취소
+      description: 취소 시 재고 복구 + 적립 포인트 회수
+      parameters:
+        - $ref: '#/components/parameters/OrderIdParam'
+      responses:
+        '200':
+          description: 취소 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /orders/{orderId}/complete:
+    patch:
+      tags: [Orders]
+      summary: 픽업 완료 처리 (점주)
+      parameters:
+        - $ref: '#/components/parameters/OrderIdParam'
+      responses:
+        '200':
+          description: 완료 처리 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccess'
+
+  /orders/{orderId}/review:
+    post:
+      tags: [Reviews]
+      summary: 리뷰 작성
+      description: 주문 1건당 리뷰 1개 (order_id unique)
+      parameters:
+        - $ref: '#/components/parameters/OrderIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewCreateRequest'
+      responses:
+        '201':
+          description: 리뷰 작성 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Review'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  # ==================== Reviews ====================
+  /reviews/me:
+    get:
+      tags: [Reviews]
+      summary: 내 리뷰 목록
+      responses:
+        '200':
+          description: 내 리뷰 목록
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MyReview'
+
+  /reviews/{reviewId}:
+    put:
+      tags: [Reviews]
+      summary: 리뷰 수정
+      parameters:
+        - $ref: '#/components/parameters/ReviewIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewCreateRequest'
+      responses:
+        '200':
+          description: 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Reviews]
+      summary: 리뷰 삭제
+      parameters:
+        - $ref: '#/components/parameters/ReviewIdParam'
+      responses:
+        '204':
+          description: 삭제 성공
+
+  # ==================== Favorites ====================
+  /favorites:
+    post:
+      tags: [Favorites]
+      summary: 즐겨찾기 추가
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                storeId:
+                  type: integer
+                  format: int64
+                  example: 1
+              required: [storeId]
+      responses:
+        '201':
+          description: 추가 성공
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          favoriteId:
+                            type: integer
+                            format: int64
+                          storeId:
+                            type: integer
+                            format: int64
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /favorites/me:
+    get:
+      tags: [Favorites]
+      summary: 내 즐겨찾기 목록
+      description: 찜한 가게의 현재 판매 중 상품 요약 포함
+      responses:
+        '200':
+          description: 즐겨찾기 목록
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/FavoriteItem'
+
+  /favorites/{favoriteId}:
+    delete:
+      tags: [Favorites]
+      summary: 즐겨찾기 삭제
+      parameters:
+        - name: favoriteId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: 삭제 성공
+
+# ==================== Components ====================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 0
+    SizeParam:
+      name: size
+      in: query
+      schema:
+        type: integer
+        default: 20
+    StoreIdParam:
+      name: storeId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    ProductIdParam:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    OrderIdParam:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    ReviewIdParam:
+      name: reviewId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  responses:
+    BadRequest:
+      description: 잘못된 요청
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Unauthorized:
+      description: 인증 실패
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: 권한 없음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: 리소스 없음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: 충돌 (중복/재고부족)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+
+  schemas:
+    # ---------- 공통 ----------
+    ApiSuccess:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        message:
+          type: string
+          example: 요청이 성공했습니다.
+    ApiError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        data:
+          nullable: true
+          example: null
+        message:
+          type: string
+          example: 재고가 부족합니다.
+        errorCode:
+          type: string
+          example: PRODUCT_OUT_OF_STOCK
+
+    # ---------- Enum ----------
+    UserRole:
+      type: string
+      enum: [CUSTOMER, OWNER]
+    ProductStatus:
+      type: string
+      enum: [FOR_SALE, SOLD_OUT, EXPIRED]
+    PickupStatus:
+      type: string
+      enum: [READY, COMPLETED, CANCELED]
+    PaymentMethod:
+      type: string
+      enum: [CARD, POINT]
+    PointType:
+      type: string
+      enum: [EARN, USE, CANCEL]
+
+    # ---------- Auth / User ----------
+    SignupRequest:
+      type: object
+      required: [email, password, name, role]
+      properties:
+        email:
+          type: string
+          example: user1@test.com
+        password:
+          type: string
+          minLength: 8
+          example: password123!
+        name:
+          type: string
+          example: 이손님
+        phone:
+          type: string
+          example: 010-1234-5678
+        role:
+          $ref: '#/components/schemas/UserRole'
+    SignupResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                userId:
+                  type: integer
+                  format: int64
+                email:
+                  type: string
+                name:
+                  type: string
+                role:
+                  $ref: '#/components/schemas/UserRole'
+                createdAt:
+                  type: string
+                  format: date-time
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          example: user1@test.com
+        password:
+          type: string
+          example: password123!
+    LoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                accessToken:
+                  type: string
+                refreshToken:
+                  type: string
+                user:
+                  type: object
+                  properties:
+                    userId:
+                      type: integer
+                      format: int64
+                    name:
+                      type: string
+                    role:
+                      $ref: '#/components/schemas/UserRole'
+    UserDetail:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        email:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        totalPoints:
+          type: integer
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        createdAt:
+          type: string
+          format: date-time
+    UserUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        password:
+          type: string
+    LocationRequest:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+          format: double
+          example: 37.4979
+        longitude:
+          type: number
+          format: double
+          example: 127.0276
+
+    # ---------- Store ----------
+    StoreCreateRequest:
+      type: object
+      required: [storeName, address, latitude, longitude]
+      properties:
+        storeName:
+          type: string
+          example: 맛있는 베이커리
+        category:
+          type: string
+          example: 베이커리
+        address:
+          type: string
+          example: 서울시 강남구
+        latitude:
+          type: number
+          format: double
+          example: 37.4979
+        longitude:
+          type: number
+          format: double
+          example: 127.0276
+        businessHours:
+          type: string
+          example: 10:00-22:00
+        description:
+          type: string
+    StoreSummary:
+      type: object
+      properties:
+        storeId:
+          type: integer
+          format: int64
+        storeName:
+          type: string
+        ownerId:
+          type: integer
+          format: int64
+    StoreDetail:
+      type: object
+      properties:
+        storeId:
+          type: integer
+          format: int64
+        storeName:
+          type: string
+        category:
+          type: string
+        address:
+          type: string
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        businessHours:
+          type: string
+        description:
+          type: string
+        averageRating:
+          type: number
+          format: float
+        reviewCount:
+          type: integer
+        onSaleProductCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+    StoreNearby:
+      type: object
+      properties:
+        storeId:
+          type: integer
+          format: int64
+        storeName:
+          type: string
+        category:
+          type: string
+        address:
+          type: string
+        distance:
+          type: integer
+          description: 미터 단위 거리
+          example: 320
+        maxDiscountRate:
+          type: integer
+          example: 50
+        minDiscountPrice:
+          type: integer
+          example: 4000
+        closestEndTime:
+          type: string
+          format: date-time
+        onSaleProductCount:
+          type: integer
+        thumbnailUrl:
+          type: string
+
+    # ---------- Product ----------
+    ProductCreateRequest:
+      type: object
+      required: [storeId, productName, originalPrice, discountPrice, quantity, endTime]
+      properties:
+        storeId:
+          type: integer
+          format: int64
+          example: 1
+        productName:
+          type: string
+          example: 마카롱 3구 세트
+        originalPrice:
+          type: integer
+          example: 9000
+        discountPrice:
+          type: integer
+          example: 4500
+        quantity:
+          type: integer
+          example: 3
+        endTime:
+          type: string
+          format: date-time
+          example: 2026-07-09T22:00:00
+        imageUrl:
+          type: string
+    ProductUpdateRequest:
+      type: object
+      properties:
+        productName:
+          type: string
+        originalPrice:
+          type: integer
+        discountPrice:
+          type: integer
+        quantity:
+          type: integer
+        endTime:
+          type: string
+          format: date-time
+        imageUrl:
+          type: string
+    ProductSummary:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        discountPrice:
+          type: integer
+        discountRate:
+          type: integer
+          description: 서버 자동 계산
+          example: 50
+        quantity:
+          type: integer
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        endTime:
+          type: string
+          format: date-time
+    ProductDetail:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+        storeId:
+          type: integer
+          format: int64
+        storeName:
+          type: string
+        productName:
+          type: string
+        originalPrice:
+          type: integer
+        discountPrice:
+          type: integer
+        discountRate:
+          type: integer
+        quantity:
+          type: integer
+        endTime:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        imageUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ProductFeedItem:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+        storeId:
+          type: integer
+          format: int64
+        storeName:
+          type: string
+        productName:
+          type: string
+        originalPrice:
+          type: integer
+        discountPrice:
+          type: integer
+        discountRate:
+          type: integer
+        quantity:
+          type: integer
+        endTime:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/ProductStatus'
+        imageUrl:
+          type: string
+
+    # ---------- Order ----------
+    OrderCreateRequest:
+      type: object
+      required: [storeId, paymentMethod, items]
+      properties:
+        storeId:
+          type: integer
+          format: int64
+          example: 1
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        usePoints:
+          type: integer
+          default: 0
+        items:
+          type: array
+          items:
+            type: object
+            required: [productId, quantity]
+            properties:
+              productId:
+                type: integer
+                format: int64
+                example: 1
+              quantity:
+                type: integer
+                example: 1
+    OrderItem:
+      type: object
+      properties:
+        orderItemId:
+          type: integer
+          format: int64
+        productId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        quantity:
+          type: integer
+        price:
+          type: integer
+          description: 구매 시점의 할인가
+    OrderDetail:
+      type: object
+      properties:
+        orderId:
+          type: integer
+          format: int64
+        storeId:
+          type: integer
+          format: int64
+        storeName:
+          type: string
+        storeAddress:
+          type: string
+        storeLatitude:
+          type: number
+          format: double
+        storeLongitude:
+          type: number
+          format: double
+        totalPrice:
+          type: integer
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        pickupStatus:
+          $ref: '#/components/schemas/PickupStatus'
+        earnedPoints:
+          type: integer
+        usedPoints:
+          type: integer
+        orderedAt:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        hasReview:
+          type: boolean
+    OrderSummary:
+      type: object
+      properties:
+        orderId:
+          type: integer
+          format: int64
+        storeName:
+          type: string
+        totalPrice:
+          type: integer
+        pickupStatus:
+          $ref: '#/components/schemas/PickupStatus'
+        orderedAt:
+          type: string
+          format: date-time
+        representativeProductName:
+          type: string
+        itemCount:
+          type: integer
+    StoreOrderSummary:
+      type: object
+      properties:
+        orderId:
+          type: integer
+          format: int64
+        customerName:
+          type: string
+        totalPrice:
+          type: integer
+        pickupStatus:
+          $ref: '#/components/schemas/PickupStatus'
+        orderedAt:
+          type: string
+          format: date-time
+        itemCount:
+          type: integer
+
+    # ---------- Review ----------
+    ReviewCreateRequest:
+      type: object
+      required: [rating]
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+        content:
+          type: string
+          example: 마감할인인데 상태가 너무 좋아요!
+    Review:
+      type: object
+      properties:
+        reviewId:
+          type: integer
+          format: int64
+        customerName:
+          type: string
+        rating:
+          type: integer
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    MyReview:
+      type: object
+      properties:
+        reviewId:
+          type: integer
+          format: int64
+        storeId:
+          type: integer
+          format: int64
+        storeName:
+          type: string
+        rating:
+          type: integer
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    # ---------- Favorite ----------
+    FavoriteItem:
+      type: object
+      properties:
+        favoriteId:
+          type: integer
+          format: int64
+        storeId:
+          type: integer
+          format: int64
+        storeName:
+          type: string
+        category:
+          type: string
+        onSaleProductCount:
+          type: integer
+        maxDiscountRate:
+          type: integer
+        thumbnailUrl:
+          type: string
+
+    # ---------- Point ----------
+    PointHistory:
+      type: object
+      properties:
+        pointHistoryId:
+          type: integer
+          format: int64
+        orderId:
+          type: integer
+          format: int64
+        amount:
+          type: integer
+          description: "+는 적립, -는 사용"
+        type:
+          $ref: '#/components/schemas/PointType'
+        createdAt:
+          type: string
+          format: date-time
+`;
+    const spec = jsyaml.load(specYaml);
+    window.ui = SwaggerUIBundle({
+      spec: spec,
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      docExpansion: 'list',
+      defaultModelsExpandDepth: 1,
+      tryItOutEnabled: true,
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+      layout: 'StandaloneLayout'
+    });
+  </script>
+</body>
+</html>
